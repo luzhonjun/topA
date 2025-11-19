@@ -1,0 +1,10 @@
+node_modules
+build
+dist
+.git
+.trae
+.log
+.figma
+server/.venv
+**/__pycache__
+*.pyc
