@@ -38,4 +38,17 @@ export class StockService {
       throw error
     }
   }
+
+  // 获取今日新增入榜的股票（相较上一交易日）
+  static async getNewTopStocks(limit: number = 50): Promise<StockData[]> {
+    try {
+      const { data } = await client.get(`/api/stocks/top/new`, {
+        params: { limit }
+      })
+      const list = (data.new ?? data.list ?? []) as StockData[]
+      return list
+    } catch (error) {
+      throw error
+    }
+  }
 }

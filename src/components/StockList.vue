@@ -22,6 +22,15 @@
             >
             昨日
           </label>
+          <label class="radio-label">
+            <input 
+              type="radio" 
+              v-model="dateType" 
+              value="new"
+              @change="loadData"
+            >
+            新增
+          </label>
         </div>
         <div class="limit-selector">
           <label class="radio-label">
@@ -116,7 +125,7 @@ import { ExcelExportService } from '../services/excelExportService'
 const stocks = ref<StockData[]>([])
 const loading = ref(false)
 const error = ref('')
-const dateType = ref<'today' | 'yesterday'>('today')
+const dateType = ref<'today' | 'yesterday' | 'new'>('today')
 const limit = ref<'50' | '100'>('50')
 
 // 计算属性
@@ -157,8 +166,10 @@ const loadData = async () => {
     
     if (dateType.value === 'today') {
       data = await StockService.getTopStocksByAmount(limitNum)
-    } else {
+    } else if (dateType.value === 'yesterday') {
       data = await StockService.getYesterdayTopStocksByAmount(limitNum)
+    } else {
+      data = await StockService.getNewTopStocks(limitNum)
     }
     
     stocks.value = data
@@ -172,8 +183,8 @@ const loadData = async () => {
 
 // 导出Excel
 const exportToExcel = () => {
-  const dateStr = dateType.value === 'today' ? '今日' : '昨日'
-  const filename = `A股${dateStr}成交额前${limit.value}`
+  const dateStr = dateType.value === 'today' ? '今日' : (dateType.value === 'yesterday' ? '昨日' : '今日新增入榜')
+  const filename = `A股${dateStr}${dateType.value === 'new' ? '' : `成交额前${limit.value}`}`
   ExcelExportService.exportToExcel(stocks.value, filename)
 }
 
