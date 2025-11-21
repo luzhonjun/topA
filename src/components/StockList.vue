@@ -4,33 +4,7 @@
       <h1 class="title">排行榜</h1>
       <div class="controls">
         <div class="date-selector">
-          <label class="radio-label">
-            <input 
-              type="radio" 
-              v-model="dateType" 
-              value="today"
-              @change="loadData"
-            >
-            今日
-          </label>
-          <label class="radio-label">
-            <input 
-              type="radio" 
-              v-model="dateType" 
-              value="yesterday"
-              @change="loadData"
-            >
-            昨日
-          </label>
-          <label class="radio-label">
-            <input 
-              type="radio" 
-              v-model="dateType" 
-              value="new"
-              @change="loadData"
-            >
-            新增
-          </label>
+          <input type="date" v-model="selectedDate" @change="loadData" />
         </div>
         <div class="limit-selector">
           <label class="radio-label">
@@ -50,6 +24,15 @@
               @change="loadData"
             >
             前100
+          </label>
+          <label class="radio-label">
+            <input 
+              type="radio" 
+              v-model="limit" 
+              value="200"
+              @change="loadData"
+            >
+            前200
           </label>
         </div>
         <button 
@@ -74,7 +57,7 @@
 
     <div class="stock-table-container" v-if="!loading && !error">
       <div class="summary">
-        <p>共 {{ stocks.length }} 只股票 | 数据时间: {{ currentDate }}</p>
+        <p>共 {{ stocks.length }} 只股票 | 数据时间: {{ currentDate }} | 对比: {{ prevDate }}</p>
       </div>
       
       <table class="stock-table">
@@ -118,21 +101,20 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { StockService } from '../services/stockService'
-import type { StockData } from '../services/stockService'
+import type { StockData, NewTopResponse } from '../services/stockService'
 import { ExcelExportService } from '../services/excelExportService'
 
 // 响应式数据
 const stocks = ref<StockData[]>([])
 const loading = ref(false)
 const error = ref('')
-const dateType = ref<'today' | 'yesterday' | 'new'>('today')
-const limit = ref<'50' | '100'>('50')
+const selectedDate = ref('')
+const limit = ref<'50' | '100' | '200'>('50')
+const currentDateVal = ref('')
+const prevDate = ref('')
 
 // 计算属性
-const currentDate = computed(() => {
-  if (stocks.value.length === 0) return ''
-  return stocks.value[0].date
-})
+const currentDate = computed(() => currentDateVal.value)
 
 // 格式化函数
 const formatVolume = (volume: number): string => {
@@ -161,18 +143,16 @@ const loadData = async () => {
   error.value = ''
   
   try {
-    let data: StockData[]
-    const limitNum = parseInt(limit.value)
-    
-    if (dateType.value === 'today') {
-      data = await StockService.getTopStocksByAmount(limitNum)
-    } else if (dateType.value === 'yesterday') {
-      data = await StockService.getYesterdayTopStocksByAmount(limitNum)
-    } else {
-      data = await StockService.getNewTopStocks(limitNum)
+    if (!selectedDate.value) {
+      error.value = '请选择日期'
+      return
     }
-    
-    stocks.value = data
+    let resp: NewTopResponse
+    const limitNum = parseInt(limit.value)
+    resp = await StockService.getNewTopStocks(limitNum, selectedDate.value)
+    stocks.value = resp.list
+    currentDateVal.value = resp.date || selectedDate.value
+    prevDate.value = resp.prev_date || ''
   } catch (err) {
     error.value = '获取数据失败，请稍后重试'
     console.error('加载数据失败:', err)
@@ -183,8 +163,8 @@ const loadData = async () => {
 
 // 导出Excel
 const exportToExcel = () => {
-  const dateStr = dateType.value === 'today' ? '今日' : (dateType.value === 'yesterday' ? '昨日' : '今日新增入榜')
-  const filename = `A股${dateStr}${dateType.value === 'new' ? '' : `成交额前${limit.value}`}`
+  const dateStr = currentDate.value || selectedDate.value
+  const filename = `A股${dateStr}新增入榜前${limit.value}`
   ExcelExportService.exportToExcel(stocks.value, filename)
 }
 
