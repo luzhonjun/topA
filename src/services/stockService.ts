@@ -35,6 +35,7 @@ export interface StockHistoryPoint {
 
 export interface StockHistoryResponse {
   code: string
+  name?: string
   days: number
   history: StockHistoryPoint[]
 }

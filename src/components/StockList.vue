@@ -133,8 +133,19 @@ const mode = ref<'new' | 'streak2' | 'streak3'>('new')
 const router = useRouter()
 const controllerRef = ref<AbortController | null>(null)
 
-// 计算属性
-const currentDate = computed(() => currentDateVal.value)
+Element// 计算属性
+const formatDateStr = (s: string): string => {
+  if (!s) return ''
+  const d = new Date(s)
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+  return s
+}
+const currentDate = computed(() => formatDateStr(currentDateVal.value))
 const modeLabel = computed(() => {
   if (mode.value === 'new') return '新增入榜'
   if (mode.value === 'streak2') return '连续2天'

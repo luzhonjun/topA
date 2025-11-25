@@ -1,18 +1,11 @@
 <template>
   <div class="detail-container">
     <div class="header">
-      <h2>个股近{{ days }}天成交额与排名</h2>
+      <h2>个股近30天成交额与排名</h2>
       <div class="controls">
         <div class="code">股票代码：{{ code }}</div>
+        <div class="name">股票名称：{{ name }}</div>
         <div class="date">截止日期：{{ endDate }}</div>
-        <div class="days">
-          <label>天数</label>
-          <select v-model.number="days" @change="loadHistory">
-            <option :value="30">30</option>
-            <option :value="60">60</option>
-            <option :value="90">90</option>
-          </select>
-        </div>
       </div>
     </div>
     <div v-if="loading" class="loading">加载中...</div>
@@ -56,6 +49,7 @@ const loading = ref(false)
 const error = ref('')
 const history = ref<StockHistoryPoint[]>([])
 const endDate = ref('')
+const name = ref('')
 
 const chartRef = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
@@ -92,8 +86,9 @@ const loadHistory = async () => {
   loading.value = true
   error.value = ''
   try {
-    const resp: StockHistoryResponse = await StockService.getStockHistory(code.value, days.value)
+    const resp: StockHistoryResponse = await StockService.getStockHistory(code.value, 30)
     history.value = resp.history || []
+    name.value = resp.name || ''
     endDate.value = history.value.length > 0 ? history.value[history.value.length - 1].date : ''
     renderChart()
   } catch (e) {
@@ -104,7 +99,6 @@ const loadHistory = async () => {
 }
 
 onMounted(loadHistory)
-watch(days, loadHistory)
 watch(history, renderChart)
 onUnmounted(() => { if (chart) { chart.dispose(); chart = null } })
 </script>
