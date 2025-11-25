@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomePage from '@/pages/HomePage.vue'
+import StockDetail from '@/pages/StockDetail.vue'
 
 // 定义路由配置
 const routes = [
@@ -7,6 +8,12 @@ const routes = [
     path: '/',
     name: 'home',
     component: HomePage,
+  },
+  {
+    path: '/stocks/:code',
+    name: 'stock-detail',
+    component: StockDetail,
+    props: true,
   },
   {
     path: '/about',

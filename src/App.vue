@@ -1,11 +1,10 @@
 <template>
   <div id="app">
-    <StockList />
+    <router-view />
   </div>
 </template>
 
 <script setup lang="ts">
-import StockList from './components/StockList.vue'
 </script>
 
 <style>

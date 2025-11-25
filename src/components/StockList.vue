@@ -1,18 +1,32 @@
 <template>
   <div class="stock-list-container">
-    <div class="header">
-      <h1 class="title">排行榜</h1>
-      <div class="controls">
-        <div class="date-selector">
-          <input type="date" v-model="selectedDate" @change="loadData" />
-        </div>
-        <div class="limit-selector">
-          <label class="radio-label">
-            <input 
-              type="radio" 
-              v-model="limit" 
+  <div class="header">
+    <h1 class="title">排行榜</h1>
+    <div class="controls">
+      <div class="date-selector">
+        <input type="date" v-model="selectedDate" @change="scheduleLoad" />
+      </div>
+      <div class="mode-selector">
+        <label class="radio-label">
+          <input type="radio" v-model="mode" value="new" @change="scheduleLoad">
+          新增入榜
+        </label>
+        <label class="radio-label">
+          <input type="radio" v-model="mode" value="streak2" @change="scheduleLoad">
+          连续2天
+        </label>
+        <label class="radio-label">
+          <input type="radio" v-model="mode" value="streak3" @change="scheduleLoad">
+          连续3天
+        </label>
+      </div>
+      <div class="limit-selector">
+        <label class="radio-label">
+          <input 
+            type="radio" 
+            v-model="limit" 
               value="50"
-              @change="loadData"
+              @change="scheduleLoad"
             >
             前50
           </label>
@@ -21,7 +35,7 @@
               type="radio" 
               v-model="limit" 
               value="100"
-              @change="loadData"
+              @change="scheduleLoad"
             >
             前100
           </label>
@@ -30,7 +44,7 @@
               type="radio" 
               v-model="limit" 
               value="200"
-              @change="loadData"
+              @change="scheduleLoad"
             >
             前200
           </label>
@@ -57,7 +71,7 @@
 
     <div class="stock-table-container" v-if="!loading && !error">
       <div class="summary">
-        <p>共 {{ stocks.length }} 只股票 | 数据时间: {{ currentDate }} | 对比: {{ prevDate }}</p>
+        <p>共 {{ stocks.length }} 只股票 | 模式: {{ modeLabel }} | 数据时间: {{ currentDate }} <span v-if="mode==='new'">| 对比: {{ prevDate }}</span></p>
       </div>
       
       <table class="stock-table">
@@ -78,11 +92,12 @@
             v-for="(stock, index) in stocks" 
             :key="stock.code"
             :class="{ 'positive': stock.change > 0, 'negative': stock.change < 0 }"
+            @click="goDetail(stock.code)"
           >
             <td class="rank">{{ index + 1 }}</td>
             <td class="code">{{ stock.code }}</td>
             <td class="name">{{ stock.name }}</td>
-            <td class="price">¥{{ stock.price.toFixed(2) }}</td>
+            <td class="price">¥{{ Number(stock.price).toFixed(2) }}</td>
             <td class="change" :class="{ 'positive': stock.change > 0, 'negative': stock.change < 0 }">
               {{ stock.change > 0 ? '+' : '' }}{{ stock.change.toFixed(2) }}
             </td>
@@ -100,8 +115,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { debounce } from 'lodash-es'
 import { StockService } from '../services/stockService'
-import type { StockData, NewTopResponse } from '../services/stockService'
+import type { StockData, NewTopResponse, StreakTopResponse } from '../services/stockService'
+import { useRouter } from 'vue-router'
 import { ExcelExportService } from '../services/excelExportService'
 
 // 响应式数据
@@ -112,9 +129,17 @@ const selectedDate = ref('')
 const limit = ref<'50' | '100' | '200'>('50')
 const currentDateVal = ref('')
 const prevDate = ref('')
+const mode = ref<'new' | 'streak2' | 'streak3'>('new')
+const router = useRouter()
+const controllerRef = ref<AbortController | null>(null)
 
 // 计算属性
 const currentDate = computed(() => currentDateVal.value)
+const modeLabel = computed(() => {
+  if (mode.value === 'new') return '新增入榜'
+  if (mode.value === 'streak2') return '连续2天'
+  return '连续3天'
+})
 
 // 格式化函数
 const formatVolume = (volume: number): string => {
@@ -147,13 +172,23 @@ const loadData = async () => {
       error.value = '请选择日期'
       return
     }
-    let resp: NewTopResponse
+    if (controllerRef.value) controllerRef.value.abort()
+    controllerRef.value = new AbortController()
     const limitNum = parseInt(limit.value)
-    resp = await StockService.getNewTopStocks(limitNum, selectedDate.value)
-    stocks.value = resp.list
-    currentDateVal.value = resp.date || selectedDate.value
-    prevDate.value = resp.prev_date || ''
+    if (mode.value === 'new') {
+      const respNew: NewTopResponse = await StockService.getNewTopStocks(limitNum, selectedDate.value, controllerRef.value.signal)
+      stocks.value = respNew.list
+      currentDateVal.value = respNew.date || selectedDate.value
+      prevDate.value = respNew.prev_date || ''
+    } else {
+      const k = mode.value === 'streak2' ? 2 : 3
+      const respStreak: StreakTopResponse = await StockService.getStreakTopStocks(limitNum, selectedDate.value, k, controllerRef.value.signal)
+      stocks.value = respStreak.list
+      currentDateVal.value = respStreak.date || selectedDate.value
+      prevDate.value = ''
+    }
   } catch (err) {
+    if ((err as any)?.name === 'AbortError') return
     error.value = '获取数据失败，请稍后重试'
     console.error('加载数据失败:', err)
   } finally {
@@ -164,14 +199,20 @@ const loadData = async () => {
 // 导出Excel
 const exportToExcel = () => {
   const dateStr = currentDate.value || selectedDate.value
-  const filename = `A股${dateStr}新增入榜前${limit.value}`
+  const filename = `A股${dateStr}${modeLabel.value}前${limit.value}`
   ExcelExportService.exportToExcel(stocks.value, filename)
 }
 
 // 生命周期
 onMounted(() => {
-  loadData()
+  scheduleLoad()
 })
+
+const scheduleLoad = debounce(() => { loadData() }, 400)
+
+const goDetail = (code: string) => {
+  router.push({ name: 'stock-detail', params: { code } })
+}
 </script>
 
 <style scoped>
@@ -207,6 +248,12 @@ onMounted(() => {
 }
 
 .date-selector, .limit-selector {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.mode-selector {
   display: flex;
   gap: 15px;
   align-items: center;
@@ -316,6 +363,10 @@ onMounted(() => {
 
 .stock-table tbody tr:hover {
   background: #f7fafc;
+}
+
+.stock-table tbody tr {
+  cursor: pointer;
 }
 
 .rank {
